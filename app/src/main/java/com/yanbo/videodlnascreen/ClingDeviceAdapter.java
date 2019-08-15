@@ -10,7 +10,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.yanbo.lib_screen.entity.ClingDevice;
-import com.yanbo.lib_screen.listener.ItemClickListener;
+import com.yanbo.videodlnascreen.listener.ItemClickListener;
 import com.yanbo.lib_screen.manager.DeviceManager;
 
 import java.util.List;

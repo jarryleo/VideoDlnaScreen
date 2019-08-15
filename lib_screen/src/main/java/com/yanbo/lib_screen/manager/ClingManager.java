@@ -8,6 +8,7 @@ import android.os.IBinder;
 
 import com.yanbo.lib_screen.VApplication;
 import com.yanbo.lib_screen.callback.ContentBrowseCallback;
+import com.yanbo.lib_screen.entity.CastState;
 import com.yanbo.lib_screen.entity.RemoteItem;
 import com.yanbo.lib_screen.event.DIDLEvent;
 import com.yanbo.lib_screen.listener.ClingRegistryListener;
@@ -97,7 +98,7 @@ public class ClingManager {
     public void setLocalItem(Item item) {
         localItem = item;
         remoteItem = null;
-        ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
+        ControlManager.getInstance().setState(CastState.STOPPED);
     }
 
     public Item getLocalItem() {
@@ -111,7 +112,7 @@ public class ClingManager {
     public void setRemoteItem(RemoteItem remoteItem) {
         this.remoteItem = remoteItem;
         this.localItem = null;
-        ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
+        ControlManager.getInstance().setState(CastState.STOPPED);
     }
 
     public void startClingService() {

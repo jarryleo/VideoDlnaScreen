@@ -12,19 +12,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.yanbo.lib_screen.callback.ControlCallback;
-import com.yanbo.lib_screen.entity.AVTransportInfo;
+import com.yanbo.lib_screen.entity.CastState;
 import com.yanbo.lib_screen.entity.RemoteItem;
-import com.yanbo.lib_screen.entity.RenderingControlInfo;
-import com.yanbo.lib_screen.event.ControlEvent;
+import com.yanbo.lib_screen.listener.OnControlStatusChangedListener;
 import com.yanbo.lib_screen.manager.ClingManager;
 import com.yanbo.lib_screen.manager.ControlManager;
 import com.yanbo.lib_screen.utils.LogUtils;
 import com.yanbo.lib_screen.utils.VMDate;
 
 import org.fourthline.cling.support.model.item.Item;
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 /**
  * 描述：
@@ -32,7 +28,7 @@ import org.greenrobot.eventbus.ThreadMode;
  * @author Yanbo
  * @date 2018/11/6
  */
-public class MediaPlayActivity extends AppCompatActivity implements View.OnClickListener {
+public class MediaPlayActivity extends AppCompatActivity implements View.OnClickListener, OnControlStatusChangedListener {
 
     TextView contentTitleView;
     TextView contentUrlView;
@@ -77,6 +73,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         nextView.setOnClickListener(this);
         stopView.setOnClickListener(this);
         playTimeView.setOnClickListener(this);
+        ControlManager.getInstance().setOnControlStatusChangedListener(this);
         init();
     }
 
@@ -155,6 +152,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         });
     }
 
+    @Override
     public void onClick(View view) {
         switch (view.getId()) {
             case R.id.img_volume:
@@ -228,15 +226,15 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
      * 播放开关
      */
     private void play() {
-        if (ControlManager.getInstance().getState() == ControlManager.CastState.STOPED) {
+        if (ControlManager.getInstance().getState() == CastState.STOPPED) {
             if (localItem != null) {
                 newPlayCastLocalContent();
             } else {
                 newPlayCastRemoteContent();
             }
-        } else if (ControlManager.getInstance().getState() == ControlManager.CastState.PAUSED) {
+        } else if (ControlManager.getInstance().getState() == CastState.PAUSED) {
             playCast();
-        } else if (ControlManager.getInstance().getState() == ControlManager.CastState.PLAYING) {
+        } else if (ControlManager.getInstance().getState() == CastState.PLAYING) {
             pauseCast();
         } else {
             Toast.makeText(getBaseContext(), "正在连接设备，稍后操作", Toast.LENGTH_SHORT).show();
@@ -249,11 +247,11 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
     }
 
     private void newPlayCastLocalContent() {
-        ControlManager.getInstance().setState(ControlManager.CastState.TRANSITIONING);
+        ControlManager.getInstance().setState(CastState.TRANSITIONING);
         ControlManager.getInstance().newPlayCast(localItem, new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(ControlManager.CastState.PLAYING);
+                ControlManager.getInstance().setState(CastState.PLAYING);
                 ControlManager.getInstance().initScreenCastCallback();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -265,18 +263,18 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
 
             @Override
             public void onError(int code, String msg) {
-                ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
+                ControlManager.getInstance().setState(CastState.STOPPED);
                 showToast(String.format("New play cast local content failed %s", msg));
             }
         });
     }
 
     private void newPlayCastRemoteContent() {
-        ControlManager.getInstance().setState(ControlManager.CastState.TRANSITIONING);
+        ControlManager.getInstance().setState(CastState.TRANSITIONING);
         ControlManager.getInstance().newPlayCast(remoteItem, new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(ControlManager.CastState.PLAYING);
+                ControlManager.getInstance().setState(CastState.PLAYING);
                 ControlManager.getInstance().initScreenCastCallback();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -288,7 +286,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
 
             @Override
             public void onError(int code, String msg) {
-                ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
+                ControlManager.getInstance().setState(CastState.STOPPED);
                 showToast(String.format("New play cast remote content failed %s", msg));
             }
         });
@@ -298,7 +296,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().playCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(ControlManager.CastState.PLAYING);
+                ControlManager.getInstance().setState(CastState.PLAYING);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -317,7 +315,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().pauseCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(ControlManager.CastState.PAUSED);
+                ControlManager.getInstance().setState(CastState.PAUSED);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -337,7 +335,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().stopCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
+                ControlManager.getInstance().setState(CastState.STOPPED);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -372,54 +370,32 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         });
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onEventBus(ControlEvent event) {
-        AVTransportInfo avtInfo = event.getAvtInfo();
-        if (avtInfo != null) {
-            if (!TextUtils.isEmpty(avtInfo.getState())) {
-                if (avtInfo.getState().equals("TRANSITIONING")) {
-                    ControlManager.getInstance().setState(ControlManager.CastState.TRANSITIONING);
-                } else if (avtInfo.getState().equals("PLAYING")) {
-                    ControlManager.getInstance().setState(ControlManager.CastState.PLAYING);
-                    playView.setText("暂停");
-                } else if (avtInfo.getState().equals("PAUSED_PLAYBACK")) {
-                    ControlManager.getInstance().setState(ControlManager.CastState.PAUSED);
-                    playView.setText("播放");
-                } else if (avtInfo.getState().equals("STOPPED")) {
-                    ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
-                    playView.setText("播放");
-
-                    finish();
-                } else {
-                    ControlManager.getInstance().setState(ControlManager.CastState.STOPED);
-                    playView.setText("播放");
-//
-//                    finish();
-                }
-            }
-            if (!TextUtils.isEmpty(avtInfo.getMediaDuration())) {
-                playMaxTimeView.setText(avtInfo.getMediaDuration());
-            }
-            if (!TextUtils.isEmpty(avtInfo.getTimePosition())) {
-                long progress = VMDate.fromTimeString(avtInfo.getTimePosition());
-                progressSeekbar.setProgress((int) progress);
-                playTimeView.setText(avtInfo.getTimePosition());
-            }
-        }
-
-        RenderingControlInfo rcInfo = event.getRcInfo();
-        if (rcInfo != null && ControlManager.getInstance()
-                .getState() != ControlManager.CastState.STOPED) {
-            if (rcInfo.isMute() || rcInfo.getVolume() == 0) {
-                volumeView.setText("静音");
-                ControlManager.getInstance().setMute(true);
-            } else {
-                volumeView.setText("声音");
-                ControlManager.getInstance().setMute(false);
-            }
-            volumeSeekbar.setProgress(rcInfo.getVolume());
+    @Override
+    public void onStatusChanged(CastState state) {
+        if (state == CastState.PLAYING){
+            playView.setText("暂停");
+        }else{
+            playView.setText("播放");
         }
     }
+
+    @Override
+    public void onVolumeChanged(int volume, boolean isMute) {
+        if (volume ==0 || isMute){
+            volumeView.setText("静音");
+        }else{
+            volumeView.setText("声音");
+        }
+        volumeSeekbar.setProgress(volume);
+    }
+
+    @Override
+    public void onProgressChange(long absTime, long duration) {
+        playMaxTimeView.setText(VMDate.toTimeString(duration));
+        playTimeView.setText(VMDate.toTimeString(absTime));
+        progressSeekbar.setProgress((int) absTime);
+    }
+
 
     private void showToast(final String msg) {
         runOnUiThread(new Runnable() {
@@ -428,20 +404,5 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
                 Toast.makeText(getBaseContext(), msg, Toast.LENGTH_SHORT).show();
             }
         });
-    }
-
-
-
-
-    @Override
-    public void onStart() {
-        super.onStart();
-        EventBus.getDefault().register(this);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        EventBus.getDefault().unregister(this);
     }
 }

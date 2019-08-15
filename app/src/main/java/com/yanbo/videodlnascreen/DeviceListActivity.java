@@ -9,13 +9,12 @@ import android.support.v7.widget.RecyclerView;
 import android.widget.Toast;
 
 import com.yanbo.lib_screen.entity.ClingDevice;
-import com.yanbo.lib_screen.event.DeviceEvent;
-import com.yanbo.lib_screen.listener.ItemClickListener;
+import com.yanbo.lib_screen.listener.OnDeviceListChangeListener;
+import com.yanbo.lib_screen.manager.ClingManager;
 import com.yanbo.lib_screen.manager.DeviceManager;
+import com.yanbo.videodlnascreen.listener.ItemClickListener;
 
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
+import java.util.List;
 
 /**
  * 描述：
@@ -23,7 +22,7 @@ import org.greenrobot.eventbus.ThreadMode;
  * @author Yanbo
  * @date 2018/11/6
  */
-public class DeviceListActivity extends AppCompatActivity {
+public class DeviceListActivity extends AppCompatActivity implements OnDeviceListChangeListener {
 
     RecyclerView recyclerView;
     private LinearLayoutManager layoutManager;
@@ -51,6 +50,7 @@ public class DeviceListActivity extends AppCompatActivity {
                 refresh();
             }
         });
+        DeviceManager.getInstance().setDeviceListChangeListener(this);
     }
 
     public void refresh() {
@@ -60,20 +60,15 @@ public class DeviceListActivity extends AppCompatActivity {
         }
         adapter.refresh();
     }
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onEventBus(DeviceEvent event) {
-        refresh();
-    }
 
     @Override
     public void onStart() {
         super.onStart();
-        EventBus.getDefault().register(this);
+        ClingManager.getInstance().searchDevices();
     }
 
     @Override
-    public void onStop() {
-        super.onStop();
-        EventBus.getDefault().unregister(this);
+    public void onDeviceListChanged(List<ClingDevice> deviceList) {
+        refresh();
     }
 }

@@ -1,4 +1,4 @@
-package com.yanbo.lib_screen.listener;
+package com.yanbo.videodlnascreen.listener;
 
 /**
  * Created by lzan13 on 2018/3/10.

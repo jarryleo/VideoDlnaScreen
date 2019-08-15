@@ -1,4 +1,4 @@
-package com.yanbo.lib_screen.listener;
+package com.yanbo.videodlnascreen.listener;
 
 /**
  * 描述：

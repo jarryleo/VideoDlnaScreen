@@ -3,13 +3,13 @@ package com.yanbo.lib_screen.manager;
 import android.support.annotation.NonNull;
 
 import com.yanbo.lib_screen.entity.ClingDevice;
-import com.yanbo.lib_screen.event.DeviceEvent;
+import com.yanbo.lib_screen.listener.OnDeviceListChangeListener;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.UDADeviceType;
-import org.greenrobot.eventbus.EventBus;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +24,8 @@ public class DeviceManager {
     private static DeviceManager instance;
     private List<ClingDevice> clingDeviceList;
     private ClingDevice currClingDevice;
+
+    private WeakReference<OnDeviceListChangeListener> mDeviceListChangeListener;
 
     /**
      * 私有构造方法
@@ -66,7 +68,9 @@ public class DeviceManager {
         if (device.getType().equals(DMR_DEVICE)) {
             ClingDevice clingDevice = new ClingDevice(device);
             clingDeviceList.add(clingDevice);
-            EventBus.getDefault().post(new DeviceEvent());
+            if(mDeviceListChangeListener.get() != null){
+                mDeviceListChangeListener.get().onDeviceListChanged(clingDeviceList);
+            }
         }
     }
 
@@ -114,5 +118,9 @@ public class DeviceManager {
         if (clingDeviceList != null) {
             clingDeviceList.clear();
         }
+    }
+
+    public void setDeviceListChangeListener(OnDeviceListChangeListener listenser){
+        mDeviceListChangeListener = new WeakReference<>(listenser);
     }
 }

@@ -6,10 +6,11 @@ import com.yanbo.lib_screen.callback.AVTransportCallback;
 import com.yanbo.lib_screen.callback.ControlCallback;
 import com.yanbo.lib_screen.callback.RenderingControlCallback;
 import com.yanbo.lib_screen.entity.AVTransportInfo;
+import com.yanbo.lib_screen.entity.CastState;
 import com.yanbo.lib_screen.entity.ClingDevice;
 import com.yanbo.lib_screen.entity.RemoteItem;
 import com.yanbo.lib_screen.entity.RenderingControlInfo;
-import com.yanbo.lib_screen.event.ControlEvent;
+import com.yanbo.lib_screen.listener.OnControlStatusChangedListener;
 import com.yanbo.lib_screen.utils.ClingUtil;
 import com.yanbo.lib_screen.utils.LogUtils;
 import com.yanbo.lib_screen.utils.VMDate;
@@ -36,7 +37,8 @@ import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
 import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
-import org.greenrobot.eventbus.EventBus;
+
+import java.lang.ref.WeakReference;
 
 /**
  * Created by lzan13 on 2018/3/10.
@@ -63,8 +65,10 @@ public class ControlManager {
     private String trackDurationStr;
     private long trackDuration;
 
-    private CastState state = CastState.STOPED;
+    private CastState state = CastState.STOPPED;
     private boolean isMute = false;
+
+    private WeakReference<OnControlStatusChangedListener> mOnControlStatusChangedListener;
 
     private ControlManager() {
         avtService = findServiceFromDevice(AV_TRANSPORT);
@@ -149,7 +153,7 @@ public class ControlManager {
         controlPoint.execute(new Play(instanceId, avtService) {
             @Override
             public void success(ActionInvocation invocation) {
-                LogUtils.i("","Play success");
+                LogUtils.i("", "Play success");
                 callback.onSuccess();
             }
 
@@ -173,7 +177,7 @@ public class ControlManager {
         controlPoint.execute(new Pause(instanceId, avtService) {
             @Override
             public void success(ActionInvocation invocation) {
-                LogUtils.i("","Pause success");
+                LogUtils.i("", "Pause success");
                 callback.onSuccess();
             }
 
@@ -197,7 +201,7 @@ public class ControlManager {
         controlPoint.execute(new Stop(instanceId, avtService) {
             @Override
             public void success(ActionInvocation invocation) {
-                LogUtils.i("","Stop success");
+                LogUtils.i("", "Stop success");
                 callback.onSuccess();
             }
 
@@ -248,7 +252,7 @@ public class ControlManager {
         controlPoint.execute(new SetVolume(instanceId, rcService, volume) {
             @Override
             public void success(ActionInvocation invocation) {
-                LogUtils.d(" ","setVolume success");
+                LogUtils.d(" ", "setVolume success");
                 callback.onSuccess();
             }
 
@@ -272,7 +276,7 @@ public class ControlManager {
         controlPoint.execute(new SetMute(instanceId, rcService, mute) {
             @Override
             public void success(ActionInvocation invocation) {
-                LogUtils.d("","Mute success");
+                LogUtils.d("", "Mute success");
                 callback.onSuccess();
             }
 
@@ -314,7 +318,7 @@ public class ControlManager {
 
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
-                LogUtils.e("setAVTransportURI - error %s url:%s", msg+"   URL   "+uri);
+                LogUtils.e("setAVTransportURI - error %s url:%s", msg + "   URL   " + uri);
                 callback.onError(VError.UNKNOWN, msg);
             }
         });
@@ -329,7 +333,7 @@ public class ControlManager {
             return;
         }
         String metadata = ClingUtil.getItemMetadata(item);
-        LogUtils.i("metadata: " , metadata);
+        LogUtils.i("metadata: ", metadata);
         final String uri = item.getUrl();
         ControlPoint controlPoint = ClingManager.getInstance().getControlPoint();
         controlPoint.execute(new SetAVTransportURI(instanceId, avtService, item.getUrl(), metadata) {
@@ -341,7 +345,7 @@ public class ControlManager {
 
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
-                LogUtils.e("setAVTransportURI - error %s url:%s", msg+"   URL   "+uri);
+                LogUtils.e("setAVTransportURI - error %s url:%s", msg + "   URL   " + uri);
                 callback.onError(VError.UNKNOWN, msg);
             }
         });
@@ -353,7 +357,8 @@ public class ControlManager {
     public void initScreenCastCallback() {
         unInitScreenCastCallback();
         isScreenCast = true;
-        LogUtils.d("","initScreenCastCallback");
+        LogUtils.d("", "initScreenCastCallback");
+        // 循环获取投屏接受端状态
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -378,9 +383,22 @@ public class ControlManager {
         avtCallback = new AVTransportCallback(avtService) {
             @Override
             protected void received(AVTransportInfo info) {
-                ControlEvent event = new ControlEvent();
-                event.setAvtInfo(info);
-                EventBus.getDefault().post(event);
+                String state = info.getState();
+                if (AVTransportInfo.PLAYING.equals(state)) {
+                    setState(CastState.PLAYING);
+                } else if (AVTransportInfo.TRANSITIONING.equals(state)) {
+                    setState(CastState.TRANSITIONING);
+                } else if (AVTransportInfo.PAUSED_PLAYBACK.equals(state)) {
+                    setState(CastState.PAUSED);
+                } else if (AVTransportInfo.STOPPED.equals(state)) {
+                    setState(CastState.STOPPED);
+                }
+
+                if (mOnControlStatusChangedListener.get() != null) {
+                    mOnControlStatusChangedListener.get()
+                            .onProgressChange(VMDate.fromTimeString(info.getTimePosition()),
+                                    VMDate.fromTimeString(info.getMediaDuration()));
+                }
             }
         };
         ClingManager.getInstance().getControlPoint().execute(avtCallback);
@@ -389,11 +407,12 @@ public class ControlManager {
         rcCallback = new RenderingControlCallback(rcService) {
             @Override
             protected void received(RenderingControlInfo info) {
-                LogUtils.d("RenderingControlCallback received: mute:%b, volume:%d", info.isMute()+"   volume  "+info
+                LogUtils.d("RenderingControlCallback received: mute:%b, volume:%d", info.isMute() + "   volume  " + info
                         .getVolume());
-                ControlEvent event = new ControlEvent();
-                event.setRcInfo(info);
-                EventBus.getDefault().post(event);
+                setMute(info.isMute());
+                if (mOnControlStatusChangedListener.get() != null) {
+                    mOnControlStatusChangedListener.get().onVolumeChanged(info.getVolume(), info.isMute());
+                }
             }
         };
         ClingManager.getInstance().getControlPoint().execute(rcCallback);
@@ -403,7 +422,7 @@ public class ControlManager {
      * 取消初始化投屏相关回调
      */
     public void unInitScreenCastCallback() {
-        LogUtils.d("","unInitScreenCastCallback");
+        LogUtils.d("", "unInitScreenCastCallback");
         absTimeStr = "00:00:00";
         absTime = 0;
         trackDurationStr = "00:00:00";
@@ -426,27 +445,25 @@ public class ControlManager {
             @Override
             public void received(ActionInvocation invocation, PositionInfo positionInfo) {
                 if (positionInfo != null) {
-                    AVTransportInfo info = new AVTransportInfo();
-                    info.setTimePosition(positionInfo.getAbsTime());
-                    info.setMediaDuration(positionInfo.getTrackDuration());
-                    ControlEvent event = new ControlEvent();
-                    event.setAvtInfo(info);
-                    EventBus.getDefault().post(event);
-
                     absTimeStr = positionInfo.getAbsTime();
                     absTime = VMDate.fromTimeString(absTimeStr);
                     trackDurationStr = positionInfo.getTrackDuration();
                     trackDuration = VMDate.fromTimeString(trackDurationStr);
+
+                    if (mOnControlStatusChangedListener.get() != null) {
+                        mOnControlStatusChangedListener.get().onProgressChange(absTime, trackDuration);
+                    }
+                    //判断是否播放完成
                     if (absTimeStr.equals(trackDurationStr) && absTime != 0 && trackDuration != 0) {
                         unInitScreenCastCallback();
                     }
                 }
-                LogUtils.d("getPositionInfo success positionInfo:" , positionInfo.toString());
+                LogUtils.d("getPositionInfo success positionInfo:", positionInfo.toString());
             }
 
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
-                LogUtils.e("E","getPositionInfo failed");
+                LogUtils.e("E", "getPositionInfo failed");
             }
         });
     }
@@ -464,33 +481,29 @@ public class ControlManager {
             @Override
             public void received(ActionInvocation invocation, TransportInfo transportInfo) {
                 TransportState ts = transportInfo.getCurrentTransportState();
-                AVTransportInfo info = new AVTransportInfo();
                 if (TransportState.TRANSITIONING == ts) {
-                    info.setState(AVTransportInfo.TRANSITIONING);
+                    setState(CastState.TRANSITIONING);
                 } else if (TransportState.PLAYING == ts) {
-                    info.setState(AVTransportInfo.PLAYING);
+                    setState(CastState.PLAYING);
                 } else if (TransportState.PAUSED_PLAYBACK == ts) {
-                    info.setState(AVTransportInfo.PAUSED_PLAYBACK);
+                    setState(CastState.PAUSED);
                 } else if (TransportState.STOPPED == ts) {
-                    info.setState(AVTransportInfo.STOPPED);
+                    setState(CastState.STOPPED);
                     if (absTime != 0 && trackDuration != 0) {
                         unInitScreenCastCallback();
                     }
                 } else {
-                    info.setState(AVTransportInfo.STOPPED);
+                    setState(CastState.STOPPED);
                     if (absTime != 0 && trackDuration != 0) {
                         unInitScreenCastCallback();
                     }
                 }
-                ControlEvent event = new ControlEvent();
-                event.setAvtInfo(info);
-                EventBus.getDefault().post(event);
-                LogUtils.d("getTransportInfo success transportInfo:" , ts.getValue());
+                LogUtils.d("getTransportInfo success transportInfo:", ts.getValue());
             }
 
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
-                LogUtils.e("E","getTransportInfo failed");
+                LogUtils.e("E", "getTransportInfo failed");
             }
         });
     }
@@ -506,13 +519,16 @@ public class ControlManager {
         controlPoint.execute(new GetVolume(instanceId, rcService) {
             @Override
             public void received(ActionInvocation actionInvocation, int currentVolume) {
-                RenderingControlInfo info = new RenderingControlInfo();
-                info.setVolume(currentVolume);
-                info.setMute(false);
-                ControlEvent event = new ControlEvent();
-                event.setRcInfo(info);
-                EventBus.getDefault().post(event);
-                LogUtils.d("getVolume success volume:" , currentVolume);
+                if (currentVolume == 0) {
+                    setMute(true);
+                } else {
+                    setMute(false);
+                }
+
+                if (mOnControlStatusChangedListener.get() != null) {
+                    mOnControlStatusChangedListener.get().onVolumeChanged(currentVolume, currentVolume == 0);
+                }
+                LogUtils.d("getVolume success volume:", currentVolume);
             }
 
             @Override
@@ -562,6 +578,9 @@ public class ControlManager {
 
     public void setState(CastState state) {
         this.state = state;
+        if (mOnControlStatusChangedListener.get() != null) {
+            mOnControlStatusChangedListener.get().onStatusChanged(state);
+        }
     }
 
     public boolean isMute() {
@@ -581,11 +600,7 @@ public class ControlManager {
         rcService = null;
     }
 
-    public enum CastState {
-        TRANSITIONING,
-        PLAYING,
-        PAUSED,
-        STOPED
+    public void setOnControlStatusChangedListener(OnControlStatusChangedListener listener) {
+        mOnControlStatusChangedListener = new WeakReference<>(listener);
     }
-
 }

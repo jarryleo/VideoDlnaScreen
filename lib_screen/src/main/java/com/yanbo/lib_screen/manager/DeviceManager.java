@@ -2,6 +2,7 @@ package com.yanbo.lib_screen.manager;
 
 import android.support.annotation.NonNull;
 
+import com.yanbo.lib_screen.VApplication;
 import com.yanbo.lib_screen.entity.ClingDevice;
 import com.yanbo.lib_screen.listener.OnDeviceListChangeListener;
 
@@ -18,14 +19,15 @@ import java.util.List;
  * 设备管理器，保存当前包含设备列表，以及当前选中设备
  */
 public class DeviceManager {
-    // DMR 设备 类型
+    /** DMR 设备 类型*/
     public static final DeviceType DMR_DEVICE = new UDADeviceType("MediaRenderer");
 
     private static DeviceManager instance;
     private List<ClingDevice> clingDeviceList;
     private ClingDevice currClingDevice;
 
-    private WeakReference<OnDeviceListChangeListener> mDeviceListChangeListener;
+    private WeakReference<OnDeviceListChangeListener> mDeviceListChangeListener
+            = new WeakReference<>(null);
 
     /**
      * 私有构造方法
@@ -69,7 +71,12 @@ public class DeviceManager {
             ClingDevice clingDevice = new ClingDevice(device);
             clingDeviceList.add(clingDevice);
             if(mDeviceListChangeListener.get() != null){
-                mDeviceListChangeListener.get().onDeviceListChanged(clingDeviceList);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        mDeviceListChangeListener.get().onDeviceListChanged(clingDeviceList);
+                    }
+                });
             }
         }
     }

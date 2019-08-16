@@ -10,7 +10,6 @@ import com.yanbo.lib_screen.VApplication;
 import com.yanbo.lib_screen.callback.ContentBrowseCallback;
 import com.yanbo.lib_screen.entity.CastState;
 import com.yanbo.lib_screen.entity.RemoteItem;
-import com.yanbo.lib_screen.event.DIDLEvent;
 import com.yanbo.lib_screen.listener.ClingRegistryListener;
 import com.yanbo.lib_screen.service.ClingService;
 import com.yanbo.lib_screen.service.SystemService;
@@ -26,7 +25,6 @@ import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.item.Item;
-import org.greenrobot.eventbus.EventBus;
 
 
 /**
@@ -204,9 +202,6 @@ public class ClingManager {
             public void received(ActionInvocation actionInvocation, DIDLContent didl) {
                 LogUtils.e("Load local content! containers:%d, items:%d", didl.getContainers().size()+"    "+
                         didl.getItems().size()+"  ");
-                DIDLEvent event = new DIDLEvent();
-                event.content = didl;
-                EventBus.getDefault().post(event);
             }
 
             @Override

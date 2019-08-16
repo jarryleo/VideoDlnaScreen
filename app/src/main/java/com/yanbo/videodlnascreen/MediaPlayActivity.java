@@ -50,25 +50,27 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
     private int currVolume = defaultVolume;
     private boolean isMute = false;
     private int currProgress = 0;
+
     public static void startSelf(Activity context) {
         Intent intent = new Intent(context, MediaPlayActivity.class);
         context.startActivity(intent);
     }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_test_media_play);
-        contentTitleView=findViewById(R.id.text_content_title);
-        contentUrlView=findViewById(R.id.text_content_url);
-        volumeView=findViewById(R.id.img_volume);
-        volumeSeekbar=findViewById(R.id.seek_bar_volume);
-        progressSeekbar=findViewById(R.id.seek_bar_progress);
-        playTimeView=findViewById(R.id.text_play_time);
-        playMaxTimeView=findViewById(R.id.text_play_max_time);
-        stopView=findViewById(R.id.img_stop);
-        previousView=findViewById(R.id.img_previous);
-        playView=findViewById(R.id.img_play);
-        nextView=findViewById(R.id.img_next);
+        contentTitleView = findViewById(R.id.text_content_title);
+        contentUrlView = findViewById(R.id.text_content_url);
+        volumeView = findViewById(R.id.img_volume);
+        volumeSeekbar = findViewById(R.id.seek_bar_volume);
+        progressSeekbar = findViewById(R.id.seek_bar_progress);
+        playTimeView = findViewById(R.id.text_play_time);
+        playMaxTimeView = findViewById(R.id.text_play_max_time);
+        stopView = findViewById(R.id.img_stop);
+        previousView = findViewById(R.id.img_previous);
+        playView = findViewById(R.id.img_play);
+        nextView = findViewById(R.id.img_next);
         playView.setOnClickListener(this);
         nextView.setOnClickListener(this);
         stopView.setOnClickListener(this);
@@ -168,6 +170,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
                 break;
             case R.id.img_next:
 
+            default:
                 break;
         }
     }
@@ -247,46 +250,28 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
     }
 
     private void newPlayCastLocalContent() {
-        ControlManager.getInstance().setState(CastState.TRANSITIONING);
         ControlManager.getInstance().newPlayCast(localItem, new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(CastState.PLAYING);
-                ControlManager.getInstance().initScreenCastCallback();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        playView.setText("暂停");
-                    }
-                });
+                playView.setText("暂停");
             }
 
             @Override
             public void onError(int code, String msg) {
-                ControlManager.getInstance().setState(CastState.STOPPED);
                 showToast(String.format("New play cast local content failed %s", msg));
             }
         });
     }
 
     private void newPlayCastRemoteContent() {
-        ControlManager.getInstance().setState(CastState.TRANSITIONING);
         ControlManager.getInstance().newPlayCast(remoteItem, new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(CastState.PLAYING);
-                ControlManager.getInstance().initScreenCastCallback();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        playView.setText("暂停");
-                    }
-                });
+                playView.setText("暂停");
             }
 
             @Override
             public void onError(int code, String msg) {
-                ControlManager.getInstance().setState(CastState.STOPPED);
                 showToast(String.format("New play cast remote content failed %s", msg));
             }
         });
@@ -296,12 +281,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().playCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(CastState.PLAYING);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        playView.setText("暂停");                    }
-                });
+                playView.setText("暂停");
             }
 
             @Override
@@ -315,13 +295,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().pauseCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(CastState.PAUSED);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        playView.setText("播放");
-                    }
-                });
+                playView.setText("播放");
             }
 
             @Override
@@ -335,14 +309,7 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
         ControlManager.getInstance().stopCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                ControlManager.getInstance().setState(CastState.STOPPED);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        playView.setText("播放");
-//                        finish();
-                    }
-                });
+                playView.setText("播放");
             }
 
             @Override
@@ -372,18 +339,18 @@ public class MediaPlayActivity extends AppCompatActivity implements View.OnClick
 
     @Override
     public void onStatusChanged(CastState state) {
-        if (state == CastState.PLAYING){
+        if (state == CastState.PLAYING) {
             playView.setText("暂停");
-        }else{
+        } else {
             playView.setText("播放");
         }
     }
 
     @Override
     public void onVolumeChanged(int volume, boolean isMute) {
-        if (volume ==0 || isMute){
+        if (volume == 0 || isMute) {
             volumeView.setText("静音");
-        }else{
+        } else {
             volumeView.setText("声音");
         }
         volumeSeekbar.setProgress(volume);

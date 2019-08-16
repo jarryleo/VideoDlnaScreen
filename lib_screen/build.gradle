@@ -22,7 +22,4 @@ dependencies {
     api 'org.eclipse.jetty:jetty-servlet:8.1.21.v20160908'
     api 'org.eclipse.jetty:jetty-client:8.1.21.v20160908'
 
-    // 自己封装的工具库
-    api 'org.greenrobot:eventbus:3.0.0'
-
 }

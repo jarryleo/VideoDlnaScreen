@@ -1,6 +1,10 @@
 package com.yanbo.lib_screen.manager;
 
 
+import android.os.Handler;
+import android.os.HandlerThread;
+
+import com.yanbo.lib_screen.VApplication;
 import com.yanbo.lib_screen.VError;
 import com.yanbo.lib_screen.callback.AVTransportCallback;
 import com.yanbo.lib_screen.callback.ControlCallback;
@@ -68,7 +72,11 @@ public class ControlManager {
     private CastState state = CastState.STOPPED;
     private boolean isMute = false;
 
-    private WeakReference<OnControlStatusChangedListener> mOnControlStatusChangedListener;
+    private WeakReference<OnControlStatusChangedListener> mOnControlStatusChangedListener
+            = new WeakReference<>(null);
+
+    private static HandlerThread mHandlerThread;
+    private static Handler mHandler;
 
     private ControlManager() {
         avtService = findServiceFromDevice(AV_TRANSPORT);
@@ -79,6 +87,9 @@ public class ControlManager {
     public static ControlManager getInstance() {
         if (instance == null) {
             instance = new ControlManager();
+            mHandlerThread = new HandlerThread("ThreadGetInfo");
+            mHandlerThread.start();
+            mHandler = new Handler(mHandlerThread.getLooper());
         }
         return instance;
     }
@@ -89,25 +100,45 @@ public class ControlManager {
      * @param item 需要投屏播放的本地资源对象
      */
     public void newPlayCast(final Item item, final ControlCallback callback) {
+        if (state == CastState.STOPPED){
+            setState(CastState.TRANSITIONING);
+            setLocal(item, callback);
+            return;
+        }
+        setState(CastState.TRANSITIONING);
         stopCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                setAVTransportURI(item, new ControlCallback() {
-                    @Override
-                    public void onSuccess() {
-                        playCast(callback);
-                    }
+                setLocal(item, callback);
+            }
 
+            @Override
+            public void onError(final int code, final String msg) {
+                VApplication.getHandler().post(new Runnable() {
                     @Override
-                    public void onError(int code, String msg) {
+                    public void run() {
                         callback.onError(code, msg);
                     }
                 });
             }
+        });
+    }
+
+    private void setLocal(Item item, final ControlCallback callback) {
+        setAVTransportURI(item, new ControlCallback() {
+            @Override
+            public void onSuccess() {
+                playCast(callback);
+            }
 
             @Override
-            public void onError(int code, String msg) {
-                callback.onError(code, msg);
+            public void onError(final int code, final String msg) {
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(code, msg);
+                    }
+                });
             }
         });
     }
@@ -118,25 +149,45 @@ public class ControlManager {
      * @param item 需要投屏的远程网络资源对象
      */
     public void newPlayCast(final RemoteItem item, final ControlCallback callback) {
+        if (state == CastState.STOPPED){
+            setState(CastState.TRANSITIONING);
+            setRemote(item, callback);
+            return;
+        }
+        setState(CastState.TRANSITIONING);
         stopCast(new ControlCallback() {
             @Override
             public void onSuccess() {
-                setAVTransportURI(item, new ControlCallback() {
-                    @Override
-                    public void onSuccess() {
-                        playCast(callback);
-                    }
+                setRemote(item, callback);
+            }
 
+            @Override
+            public void onError(final int code, final String msg) {
+                VApplication.getHandler().post(new Runnable() {
                     @Override
-                    public void onError(int code, String msg) {
+                    public void run() {
                         callback.onError(code, msg);
                     }
                 });
             }
+        });
+    }
+
+    private void setRemote(RemoteItem item, final ControlCallback callback) {
+        setAVTransportURI(item, new ControlCallback() {
+            @Override
+            public void onSuccess() {
+                playCast(callback);
+            }
 
             @Override
-            public void onError(int code, String msg) {
-                callback.onError(code, msg);
+            public void onError(final int code, final String msg) {
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(code, msg);
+                    }
+                });
             }
         });
     }
@@ -154,13 +205,28 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("", "Play success");
-                callback.onSuccess();
+                if (state == CastState.TRANSITIONING) {
+                    initScreenCastCallback();
+                }
+                setState(CastState.PLAYING);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("Play error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                setState(CastState.STOPPED);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -178,13 +244,24 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("", "Pause success");
-                callback.onSuccess();
+                setState(CastState.PAUSED);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("Pause error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -202,13 +279,24 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("", "Stop success");
-                callback.onSuccess();
+                setState(CastState.STOPPED);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("Stop error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -228,13 +316,23 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.d("Seek success - %s", target);
-                callback.onSuccess();
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("Seek error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -253,13 +351,23 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.d(" ", "setVolume success");
-                callback.onSuccess();
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("setVolume error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -277,13 +385,23 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.d("", "Mute success");
-                callback.onSuccess();
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("Mute error %s", msg);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -313,13 +431,23 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("setAVTransportURI success %s", uri);
-                callback.onSuccess();
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("setAVTransportURI - error %s url:%s", msg + "   URL   " + uri);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
@@ -340,16 +468,39 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("setAVTransportURI success url:%s", uri);
-                callback.onSuccess();
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onSuccess();
+                    }
+                });
             }
 
             @Override
-            public void failure(ActionInvocation invocation, UpnpResponse operation, String msg) {
+            public void failure(ActionInvocation invocation, UpnpResponse operation, final String msg) {
                 LogUtils.e("setAVTransportURI - error %s url:%s", msg + "   URL   " + uri);
-                callback.onError(VError.UNKNOWN, msg);
+                VApplication.getHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        callback.onError(VError.UNKNOWN, msg);
+                    }
+                });
             }
         });
     }
+
+
+    private Runnable mRunnable = new Runnable() {
+        @Override
+        public void run() {
+            getPositionInfo();
+            getTransportInfo();
+            getVolume();
+            if (isScreenCast) {
+                mHandler.postDelayed(mRunnable, 1000);
+            }
+        }
+    };
 
     /**
      * 初始化投屏相关回调
@@ -359,26 +510,8 @@ public class ControlManager {
         isScreenCast = true;
         LogUtils.d("", "initScreenCastCallback");
         // 循环获取投屏接受端状态
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (isScreenCast) {
-                    try {
-                        getPositionInfo();
-                        getTransportInfo();
-                        getVolume();
-                        // 如果是暂停状态就睡眠5秒
-                        if (state == CastState.PAUSED) {
-                            Thread.sleep(2000);
-                        } else {
-                            Thread.sleep(1000);
-                        }
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }).start();
+        mHandler.removeCallbacksAndMessages(null);
+        mHandler.postDelayed(mRunnable, 1000);
         // 设置投屏传输相关回调
         avtCallback = new AVTransportCallback(avtService) {
             @Override
@@ -576,7 +709,7 @@ public class ControlManager {
         return state;
     }
 
-    public void setState(CastState state) {
+    void setState(CastState state) {
         this.state = state;
         if (mOnControlStatusChangedListener.get() != null) {
             mOnControlStatusChangedListener.get().onStatusChanged(state);
@@ -598,6 +731,10 @@ public class ControlManager {
         instance = null;
         avtService = null;
         rcService = null;
+        mHandlerThread.quitSafely();
+        mHandlerThread = null;
+        mHandler.removeCallbacksAndMessages(null);
+        mHandler = null;
     }
 
     public void setOnControlStatusChangedListener(OnControlStatusChangedListener listener) {

@@ -48,6 +48,9 @@ public class ClingDeviceAdapter extends RecyclerView.Adapter<ClingDeviceAdapter.
         } else {
             holder.iconView.setVisibility(View.INVISIBLE);
         }
+        if (device == null){
+            return;
+        }
         holder.nameView.setText(device.getDevice().getDetails().getFriendlyName());
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override

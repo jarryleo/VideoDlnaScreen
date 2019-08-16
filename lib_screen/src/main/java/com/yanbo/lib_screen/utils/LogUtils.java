@@ -30,7 +30,7 @@ public final class LogUtils {
 
     @Level
     private static int FILTER = ALL;
-    private static boolean DEBUGGABLE = false;
+    private static boolean DEBUGGABLE = true;
 
     public static void setFilter(@Level int filter) {
         LogUtils.FILTER = filter;

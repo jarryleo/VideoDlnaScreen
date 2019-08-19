@@ -12,6 +12,7 @@ import org.fourthline.cling.model.types.UDADeviceType;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -34,7 +35,7 @@ public class DeviceManager {
      */
     private DeviceManager() {
         if (clingDeviceList == null) {
-            clingDeviceList = new ArrayList<>();
+            clingDeviceList = Collections.synchronizedList(new ArrayList<ClingDevice>());
         }
         clingDeviceList.clear();
     }

@@ -100,7 +100,7 @@ public class ControlManager {
      * @param item 需要投屏播放的本地资源对象
      */
     public void newPlayCast(final Item item, final ControlCallback callback) {
-        if (state == CastState.STOPPED){
+        if (state == CastState.STOPPED) {
             setState(CastState.TRANSITIONING);
             setLocal(item, callback);
             return;
@@ -149,7 +149,7 @@ public class ControlManager {
      * @param item 需要投屏的远程网络资源对象
      */
     public void newPlayCast(final RemoteItem item, final ControlCallback callback) {
-        if (state == CastState.STOPPED){
+        if (state == CastState.STOPPED) {
             setState(CastState.TRANSITIONING);
             setRemote(item, callback);
             return;
@@ -205,7 +205,7 @@ public class ControlManager {
             @Override
             public void success(ActionInvocation invocation) {
                 LogUtils.i("", "Play success");
-                if (state == CastState.TRANSITIONING) {
+                if (state != CastState.PAUSED) {
                     initScreenCastCallback();
                 }
                 setState(CastState.PLAYING);
@@ -344,6 +344,9 @@ public class ControlManager {
     public void setVolumeCast(int volume, final ControlCallback callback) {
         if (checkRCService()) {
             callback.onError(VError.SERVICE_IS_NULL, "RCService is null");
+            return;
+        }
+        if (volume < 0 || volume > 65535) {
             return;
         }
         ControlPoint controlPoint = ClingManager.getInstance().getControlPoint();
@@ -584,7 +587,12 @@ public class ControlManager {
                     trackDuration = VMDate.fromTimeString(trackDurationStr);
 
                     if (mOnControlStatusChangedListener.get() != null) {
-                        mOnControlStatusChangedListener.get().onProgressChange(absTime, trackDuration);
+                        VApplication.getHandler().post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mOnControlStatusChangedListener.get().onProgressChange(absTime, trackDuration);
+                            }
+                        });
                     }
                     //判断是否播放完成
                     if (absTimeStr.equals(trackDurationStr) && absTime != 0 && trackDuration != 0) {
@@ -709,10 +717,15 @@ public class ControlManager {
         return state;
     }
 
-    void setState(CastState state) {
+    void setState(final CastState state) {
         this.state = state;
         if (mOnControlStatusChangedListener.get() != null) {
-            mOnControlStatusChangedListener.get().onStatusChanged(state);
+            VApplication.getHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    mOnControlStatusChangedListener.get().onStatusChanged(state);
+                }
+            });
         }
     }
 

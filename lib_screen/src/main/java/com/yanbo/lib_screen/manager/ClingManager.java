@@ -182,11 +182,9 @@ public class ClingManager {
             systemServiceConnection = null;
         }
         if (clingService != null) {
-            clingService.onDestroy();
             clingService = null;
         }
         if (systemService != null) {
-            systemService.onDestroy();
             systemService = null;
         }
         clingRegistryListener = null;

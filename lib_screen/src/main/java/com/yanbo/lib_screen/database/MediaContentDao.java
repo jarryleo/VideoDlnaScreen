@@ -125,7 +125,8 @@ public class MediaContentDao {
                 Video.Media.ARTIST, Video.Media.MIME_TYPE, Video.Media.SIZE, Video.Media.DURATION,
                 Video.Media.RESOLUTION};
 
-        Cursor cur = cr.query(Video.Media.EXTERNAL_CONTENT_URI, videoColumns, null, null, null);
+        Cursor cur = cr.query(Video.Media.EXTERNAL_CONTENT_URI, videoColumns,
+                null, null, null);
 
         if (cur == null) {
             return items;

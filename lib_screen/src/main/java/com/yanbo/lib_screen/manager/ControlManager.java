@@ -346,8 +346,11 @@ public class ControlManager {
             callback.onError(VError.SERVICE_IS_NULL, "RCService is null");
             return;
         }
-        if (volume < 0 || volume > 65535) {
-            return;
+        if (volume < 0){
+            volume = 0;
+        }
+        if (volume > 65535){
+            volume = 65535;
         }
         ControlPoint controlPoint = ClingManager.getInstance().getControlPoint();
         controlPoint.execute(new SetVolume(instanceId, rcService, volume) {
